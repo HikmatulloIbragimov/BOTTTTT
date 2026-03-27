@@ -39,7 +39,7 @@ def ask_deepseek(user_text, is_start=False):
 
     try:
         response = client.chat.completions.create(
-            model="deepseek/deepseek-r1:free", # Модель DeepSeek-V3
+            model="google/gemini-pro-1.5-exp:free", # Модель DeepSeek-V3
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
