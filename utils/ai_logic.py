@@ -20,6 +20,31 @@ def clean_text(text):
     return cleaned
 
 def ask_deepseek(user_text, is_start=False):
+    key = os.getenv("OPENROUTER_API_KEY")
+    
+    # Если ключа нет в системе - мы это сразу увидим
+    if not key:
+        return "🤖 Ошибка: Railway не видит переменную OPENROUTER_API_KEY"
+
+    # Печатаем в логи Railway первые 10 символов ключа для проверки
+    print(f"DEBUG: Использую ключ {key[:10]}...")
+
+    prompt = "Привет!" if is_start else clean_text(user_text)
+    
+    try:
+        response = client.chat.completions.create(
+            # Давай попробуем эту модель - она самая простая и безотказная
+            model="google/gemini-2.0-flash-lite-preview-02-05:free",
+            messages=[{"role": "user", "content": prompt}],
+            extra_headers={
+                "HTTP-Referer": "https://railway.app",
+                "X-Title": "TelegramBot",
+            }
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        # Если здесь вылетит 404, значит OpenRouter не нравится наш запрос
+        return f"🤖 Ошибка API: {e}"
     # Если это /start
     if is_start:
         system_prompt = "Ты — крутой ИИ-ассистент. Поприветствуй всех, скажи, что тебя зовут Дип."
