@@ -5,7 +5,7 @@ from openai import OpenAI
 # Инициализация клиента
 # Переменную DEEPSEEK_API_KEY нужно добавить в Settings -> Variables на Railway
 client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"), 
+    api_key=os.getenv("OPENROUTER_API_KEY"), 
     base_url=os.getenv("BASE_URL")
 )
 
