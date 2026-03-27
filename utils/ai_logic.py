@@ -2,44 +2,41 @@ import os
 import re
 from openai import OpenAI
 
-# Инициализация клиента
-# Переменную DEEPSEEK_API_KEY нужно добавить в Settings -> Variables на Railway
+# Инициализация клиента с заголовками для OpenRouter
 client = OpenAI(
     api_key=os.getenv("OPENROUTER_API_KEY"), 
-    base_url="https://openrouter.ai/api/v1"
+    base_url="https://openrouter.ai/api/v1",
+    default_headers={
+        "HTTP-Referer": "https://railway.app", # Обязательно для OpenRouter
+        "X-Title": "Telegram AI Bot",          # Название твоего приложения
+    }
 )
 
-# Список прозвищ для очистки (чтобы ИИ не получал их в запросе)
 NICKNAMES_PATTERN = r"(?i)(дипсик|deepseek|дип|deep)"
 
 def clean_text(text):
-    """Убирает прозвище из сообщения, чтобы оставить только суть вопроса"""
     cleaned = re.sub(NICKNAMES_PATTERN, "", text).strip()
-    # Убираем лишние запятые и знаки препинания, которые могли остаться после обращения
     cleaned = re.sub(r"^[,\.\s!]+", "", cleaned)
     return cleaned
 
 def ask_deepseek(user_text, is_start=False):
-    """Основная функция для общения с ИИ"""
-    
-    # Если это первый запуск (команда /start)
+    # Если это /start
     if is_start:
-        system_prompt = "Ты — крутой ИИ-ассистент в группе. Поприветствуй всех, скажи, что откликнешься на имя 'Дип' или 'Дипсик'."
+        system_prompt = "Ты — крутой ИИ-ассистент. Поприветствуй всех, скажи, что тебя зовут Дип."
         user_prompt = "Представься группе."
     else:
-        # Очищаем текст сообщения от прозвищ
         prompt = clean_text(user_text)
-        
-        # Если после очистки текста не осталось (написали просто "Дип")
         if not prompt:
-            return "Слушаю! Есть какой-то вопрос или задача? Просто добавь её после моего имени."
+            return "Слушаю! Напиши что-нибудь после моего имени."
             
-        system_prompt = "Ты — полезный и лаконичный ИИ-ассистент. Отвечай прямо и по делу."
+        system_prompt = "Ты — полезный и лаконичный ИИ-ассистент."
         user_prompt = prompt
 
     try:
+        # Пробуем САМУЮ доступную сейчас бесплатную модель
+        # Если хочешь именно DeepSeek, замени на "deepseek/deepseek-r1:free"
         response = client.chat.completions.create(
-            model="deepseek/deepseek-r1:free", # Модель DeepSeek-V3
+            model="google/gemini-2.0-flash-lite-preview-02-05:free", 
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -48,11 +45,5 @@ def ask_deepseek(user_text, is_start=False):
         )
         return response.choices[0].message.content
     except Exception as e:
-        # Если API выдает ошибку (например, кончились деньги или лимиты)
+        # Если 404 повторяется, попробуй в консоли Railway проверить переменную OPENROUTER_API_KEY
         return f"🤖 Упс, что-то пошло не так: {e}"
-
-# Эту функцию можно использовать для тестирования прямо в консоли:
-if __name__ == "__main__":
-    # Проверка: замени ключ на реальный, если хочешь протестить без бота
-    # print(ask_deepseek("Дип, как дела?"))
-    pass
