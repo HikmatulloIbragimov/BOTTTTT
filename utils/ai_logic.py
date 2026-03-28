@@ -26,7 +26,7 @@ async def ask_deepseek(user_text, is_start=False):
             user_content = user_text
 
         completion = await client.chat.completions.create(
-            model="meta-llama/llama-3.3-70b-instruct:free",
+            model="openrouter/auto",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
