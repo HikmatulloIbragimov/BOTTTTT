@@ -1,47 +1,40 @@
 import asyncio
 import os
 import logging
-from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.filters import Command
+from aiogram import F
 
-# Импортируем логику ИИ
+# Импортируем нашу асинхронную функцию
 from utils.ai_logic import ask_deepseek
 
-# 1. Загружаем переменные
-load_dotenv()
+# Настройка
 TOKEN = os.getenv("BOT_TOKEN")
-# Список имен-триггеров
 NICKNAMES = ["дипсик", "deepseek", "дип", "deep"]
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# 2. Инициализируем бота
 bot = Bot(
     token=TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 dp = Dispatcher()
 
-# Обработчик команды /start
+# 1. Обработчик команды /start
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    # ИИ генерирует приветствие
-    response = ask_deepseek("", is_start=True)
+    # Добавляем await, так как ask_deepseek — асинхронная!
+    response = await ask_deepseek("", is_start=True)
     await message.answer(response)
 
-# Основной обработчик сообщений
-@dp.message()
+# 2. Основной обработчик
+@dp.message(F.text)
 async def main_handler(message: types.Message):
-    if not message.text:
-        return
-
     text_lower = message.text.lower()
 
-    # --- ЧАСТЬ 1: Твои заготовленные ответы (Food & Slang) ---
+    # --- ЧАСТЬ 1: Твои заготовленные ответы ---
     responses = {
         "шаверма": "🥙 <b>Шаверма</b> — это очень вкусная еда!",
         "пицца": "🍕 <b>Пицца</b> — классика!",
@@ -56,19 +49,18 @@ async def main_handler(message: types.Message):
     for key, val in responses.items():
         if key in text_lower:
             await message.reply(val)
-            return  # Если сработал триггер, ИИ уже не трогаем
+            return 
 
-    # --- ЧАСТЬ 2: Логика DeepSeek ---
+    # --- ЧАСТЬ 2: Логика ИИ (Deep/Gemini) ---
     if any(name in text_lower for name in NICKNAMES):
-        # Показываем статус "печатает"
         await bot.send_chat_action(chat_id=message.chat.id, action="typing")
         
-        # Запрос к ИИ
-        ai_response = ask_deepseek(message.text)
+        # ОБЯЗАТЕЛЬНО await перед вызовом!
+        ai_response = await ask_deepseek(message.text)
         await message.reply(ai_response)
 
 async def main():
-    print("Бот запущен и готов к работе через Aiogram 3!")
+    print("🚀 Бот запущен и готов к работе!")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 

@@ -1,54 +1,79 @@
-import os
 import asyncio
-from openai import AsyncOpenAI  # Используем АСИНХРОННЫЙ клиент
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message
+import os
+import logging
+from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
+from aiogram.filters import Command
 
-# 🔑 Берем ключи из переменных окружения (Railway)
-TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
-OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
+# Импортируем логику ИИ
+from utils.ai_logic import ask_deepseek
 
-# ✅ Настройка асинхронного клиента
-client = AsyncOpenAI(
-    api_key=OPENROUTER_KEY,
-    base_url="https://openrouter.ai/api/v1",
-    default_headers={
-        "HTTP-Referer": "https://railway.app", # Чтобы OpenRouter не давал 404
-        "X-Title": "MyAiBot"
-    }
-)
+# 1. Загружаем переменные
+load_dotenv()
+TOKEN = os.getenv("BOT_TOKEN")
+# Список имен-триггеров
+NICKNAMES = ["дипсик", "deepseek", "дип", "deep"]
 
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
+
+# 2. Инициализируем бота
 bot = Bot(
-    token=TELEGRAM_TOKEN,
+    token=TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 dp = Dispatcher()
 
-@dp.message(F.text)
-async def ai_chat(message: Message):
-    # Убираем прозвища (если нужно) или просто шлем текст
-    user_input = message.text
+# Обработчик команды /start
+@dp.message(Command("start"))
+async def cmd_start(message: types.Message):
+    # ИИ генерирует приветствие
+    response = ask_deepseek("", is_start=True)
+    await message.answer(response)
 
-    try:
-        # ✅ Используем await, чтобы бот не зависал
-        completion = await client.chat.completions.create(
-            model="google/gemini-2.0-flash-lite-preview-02-05:free", # Самая стабильная бесплатная модель
-            messages=[
-                {"role": "user", "content": user_input}
-            ]
-        )
+# Основной обработчик сообщений
+@dp.message()
+async def main_handler(message: types.Message):
+    if not message.text:
+        return
+
+    text_lower = message.text.lower()
+
+    # --- ЧАСТЬ 1: Твои заготовленные ответы (Food & Slang) ---
+    responses = {
+        "шаверма": "🥙 <b>Шаверма</b> — это очень вкусная еда!",
+        "пицца": "🍕 <b>Пицца</b> — классика!",
+        "пошел нахуй": "Тотак",
+        "хелло": "Хаваю?",
+        "фке": "Сокнма блад",
+        "хн": "Хн",
+        "бля": "Бладь",
+        "далбаеб": "хм"
+    }
+
+    for key, val in responses.items():
+        if key in text_lower:
+            await message.reply(val)
+            return  # Если сработал триггер, ИИ уже не трогаем
+
+    # --- ЧАСТЬ 2: Логика DeepSeek ---
+    if any(name in text_lower for name in NICKNAMES):
+        # Показываем статус "печатает"
+        await bot.send_chat_action(chat_id=message.chat.id, action="typing")
         
-        reply = completion.choices[0].message.content
-        await message.answer(reply)
-        
-    except Exception as e:
-        await message.answer(f"🤖 Ошибка: {e}")
+        # Запрос к ИИ
+        ai_response = ask_deepseek(message.text)
+        await message.reply(ai_response)
 
 async def main():
+    print("Бот запущен и готов к работе через Aiogram 3!")
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Бот остановлен")
