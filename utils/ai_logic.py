@@ -1,74 +1,54 @@
 import os
-import re
-from openai import OpenAI
+import asyncio
+from openai import AsyncOpenAI  # Используем АСИНХРОННЫЙ клиент
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
 
-# Инициализация клиента с заголовками для OpenRouter
-client = OpenAI(
-    api_key=os.getenv("OPENROUTER_API_KEY"), 
+# 🔑 Берем ключи из переменных окружения (Railway)
+TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
+OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY")
+
+# ✅ Настройка асинхронного клиента
+client = AsyncOpenAI(
+    api_key=OPENROUTER_KEY,
     base_url="https://openrouter.ai/api/v1",
     default_headers={
-        "HTTP-Referer": "https://railway.app", # Обязательно для OpenRouter
-        "X-Title": "Telegram AI Bot",          # Название твоего приложения
+        "HTTP-Referer": "https://railway.app", # Чтобы OpenRouter не давал 404
+        "X-Title": "MyAiBot"
     }
 )
 
-NICKNAMES_PATTERN = r"(?i)(дипсик|deepseek|дип|deep)"
+bot = Bot(
+    token=TELEGRAM_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+dp = Dispatcher()
 
-def clean_text(text):
-    cleaned = re.sub(NICKNAMES_PATTERN, "", text).strip()
-    cleaned = re.sub(r"^[,\.\s!]+", "", cleaned)
-    return cleaned
-
-def ask_deepseek(user_text, is_start=False):
-    key = os.getenv("OPENROUTER_API_KEY")
-    
-    # Если ключа нет в системе - мы это сразу увидим
-    if not key:
-        return "🤖 Ошибка: Railway не видит переменную OPENROUTER_API_KEY"
-
-    # Печатаем в логи Railway первые 10 символов ключа для проверки
-    print(f"DEBUG: Использую ключ {key[:10]}...")
-
-    prompt = "Привет!" if is_start else clean_text(user_text)
-    
-    try:
-        response = client.chat.completions.create(
-            # Давай попробуем эту модель - она самая простая и безотказная
-            model="google/gemini-2.0-flash-lite-preview-02-05:free",
-            messages=[{"role": "user", "content": prompt}],
-            extra_headers={
-                "HTTP-Referer": "https://railway.app",
-                "X-Title": "TelegramBot",
-            }
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        # Если здесь вылетит 404, значит OpenRouter не нравится наш запрос
-        return f"🤖 Ошибка API: {e}"
-    # Если это /start
-    if is_start:
-        system_prompt = "Ты — крутой ИИ-ассистент. Поприветствуй всех, скажи, что тебя зовут Дип."
-        user_prompt = "Представься группе."
-    else:
-        prompt = clean_text(user_text)
-        if not prompt:
-            return "Слушаю! Напиши что-нибудь после моего имени."
-            
-        system_prompt = "Ты — полезный и лаконичный ИИ-ассистент."
-        user_prompt = prompt
+@dp.message(F.text)
+async def ai_chat(message: Message):
+    # Убираем прозвища (если нужно) или просто шлем текст
+    user_input = message.text
 
     try:
-        # Пробуем САМУЮ доступную сейчас бесплатную модель
-        # Если хочешь именно DeepSeek, замени на "deepseek/deepseek-r1:free"
-        response = client.chat.completions.create(
-            model="google/gemini-2.0-flash-lite-preview-02-05:free", 
+        # ✅ Используем await, чтобы бот не зависал
+        completion = await client.chat.completions.create(
+            model="google/gemini-2.0-flash-lite-preview-02-05:free", # Самая стабильная бесплатная модель
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            stream=False
+                {"role": "user", "content": user_input}
+            ]
         )
-        return response.choices[0].message.content
+        
+        reply = completion.choices[0].message.content
+        await message.answer(reply)
+        
     except Exception as e:
-        # Если 404 повторяется, попробуй в консоли Railway проверить переменную OPENROUTER_API_KEY
-        return f"🤖 Упс, что-то пошло не так: {e}"
+        await message.answer(f"🤖 Ошибка: {e}")
+
+async def main():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
