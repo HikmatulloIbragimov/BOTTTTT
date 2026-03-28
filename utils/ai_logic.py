@@ -26,7 +26,7 @@ async def ask_deepseek(user_text, is_start=False):
             user_content = user_text
 
         completion = await client.chat.completions.create(
-            model="google/gemini-2.0-flash-lite-preview-02-05:free",
+            model="google/gemini-2.0-flash-lite-001:free",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
